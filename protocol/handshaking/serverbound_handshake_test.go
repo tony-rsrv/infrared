@@ -323,7 +323,7 @@ func TestServerBoundHandshake_UpgradeToRealIP(t *testing.T) {
 
 	for _, tc := range tt {
 		hs := ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
-		hs.UpgradeToRealIP(&tc.clientAddr, tc.timestamp)
+		hs.UpgradeToRealIP(tc.clientAddr.String(), tc.timestamp)
 
 		if hs.ParseServerAddress() != tc.addr {
 			t.Errorf("got: %v; want: %v", hs.ParseServerAddress(), tc.addr)

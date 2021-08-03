@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"log"
 	"net"
@@ -145,6 +146,18 @@ func (proxy *Proxy) RealIP() bool {
 	return proxy.Config.RealIP
 }
 
+func (proxy *Proxy) RealIPv5() bool {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.RealIPv5
+}
+
+func (proxy *Proxy) PrivateKey() *ecdsa.PrivateKey {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.privKey
+}
+
 func (proxy *Proxy) CallbackLogger() callback.Logger {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
@@ -237,7 +250,10 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	}
 
 	if proxy.RealIP() {
-		hs.UpgradeToRealIP(connRemoteAddr, time.Now())
+		hs.UpgradeToRealIP(connRemoteAddr.String(), time.Now())
+		pk = hs.Marshal()
+	} else if proxy.RealIPv5() {
+		hs.UpgradeToNewRealIP(connRemoteAddr.String(), proxy.PrivateKey())
 		pk = hs.Marshal()
 	}
 
