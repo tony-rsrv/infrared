@@ -1,11 +1,15 @@
 package handshaking
 
 import (
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/sha512"
+	"encoding/base64"
 	"fmt"
-	"github.com/haveachin/infrared/protocol"
-	"net"
 	"strings"
 	"time"
+
+	"github.com/haveachin/infrared/protocol"
 )
 
 const (
@@ -81,7 +85,7 @@ func (pk ServerBoundHandshake) ParseServerAddress() string {
 	return addr
 }
 
-func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp time.Time) {
+func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr string, timestamp time.Time) {
 	if pk.IsRealIPAddress() {
 		return
 	}
@@ -89,11 +93,25 @@ func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp t
 	addr := string(pk.ServerAddress)
 	addrWithForge := strings.SplitN(addr, ForgeSeparator, 3)
 
-	addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr.String(), timestamp.Unix())
+	addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr, timestamp.Unix())
 
 	if len(addrWithForge) > 1 {
 		addr = fmt.Sprintf("%s\x00%s\x00", addr, addrWithForge[1])
 	}
 
 	pk.ServerAddress = protocol.String(addr)
+}
+
+func (hs *ServerBoundHandshake) UpgradeToNewRealIP(clientAddr string, key *ecdsa.PrivateKey) error {
+	hs.UpgradeToRealIP(clientAddr, time.Now())
+	text := hs.ServerAddress
+	hash := sha512.Sum512([]byte(text))
+	bytes, err := ecdsa.SignASN1(rand.Reader, key, hash[:])
+	if err != nil {
+		return err
+	}
+	encoded := base64.StdEncoding.EncodeToString(bytes)
+	addr := fmt.Sprintf("%s///%s", hs.ServerAddress, encoded)
+	hs.ServerAddress = protocol.String(addr)
+	return nil
 }

@@ -2,6 +2,8 @@ package infrared
 
 import (
 	"bufio"
+	"crypto/ecdsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -23,6 +25,7 @@ import (
 type ProxyConfig struct {
 	sync.RWMutex
 	watcher *fsnotify.Watcher
+	privKey *ecdsa.PrivateKey
 
 	removeCallback func()
 	changeCallback func()
@@ -35,6 +38,8 @@ type ProxyConfig struct {
 	ProxyBind         string               `json:"proxyBind"`
 	ProxyProtocol     bool                 `json:"proxyProtocol"`
 	RealIP            bool                 `json:"realIp"`
+	RealIPv5          bool                 `json:"realIp2.5"`
+	KeyPath           string               `json:"keyPath"`
 	Timeout           int                  `json:"timeout"`
 	DisconnectMessage string               `json:"disconnectMessage"`
 	Docker            DockerConfig         `json:"docker"`
@@ -373,7 +378,18 @@ func (cfg *ProxyConfig) LoadFromPath(path string) error {
 		return err
 	}
 
-	return json.Unmarshal(bb, cfg)
+	if err := json.Unmarshal(bb, cfg); err != nil {
+		return err
+	}
+	if cfg.KeyPath == "" {
+		return nil
+	}
+	keyBb, err := ioutil.ReadFile(cfg.KeyPath)
+	if err != nil {
+		return err
+	}
+	cfg.privKey, err = x509.ParseECPrivateKey(keyBb)
+	return err
 }
 
 func WatchProxyConfigFolder(path string, out chan *ProxyConfig) error {
